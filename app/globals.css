@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+@config "../tailwind.config.ts";
+
+/*
+ * Pullmates Theme
+ * Brand colors based on logo: Orange to Pink gradient
+ */
+
+:root {
+  /* Light mode colors */
+  --background: #ffffff;
+  --foreground: #1a2034;  /* Dark navy from logo */
+  --brand: #f97316;       /* Orange from gradient */
+  --brand-foreground: #ffffff;
+  --accent: #f43f5e;      /* Pink from gradient */
+  --accent-foreground: #ffffff;
+  --primary: #f97316;
+  --primary-foreground: #ffffff;
+  --secondary: #f43f5e;
+  --secondary-foreground: #ffffff;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --card: #ffffff;
+  --card-foreground: #1a2034;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #f97316;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+}
+
+.dark {
+  /* Dark mode colors */
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --brand: #fb923c;       /* Lighter orange for dark mode */
+  --brand-foreground: #1a2034;
+  --accent: #fb7185;      /* Lighter pink for dark mode */
+  --accent-foreground: #1a2034;
+  --primary: #fb923c;
+  --primary-foreground: #1a2034;
+  --secondary: #fb7185;
+  --secondary-foreground: #1a2034;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --card: #171717;
+  --card-foreground: #ededed;
+  --border: #404040;
+  --input: #404040;
+  --ring: #fb923c;
+  --destructive: #f87171;
+  --destructive-foreground: #0a0a0a;
+}
+
+@theme inline {
+  /* CSS variable colors mapped to Tailwind */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-navy: #1a2034;
+
+  /* Font families */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Custom spacing */
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+}
+
+/*
+ * Base styles
+ */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * Smooth scrolling
+ */
+html {
+  scroll-behavior: smooth;
+}
+
+/*
+ * Focus styles for accessibility
+ */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/*
+ * Custom scrollbar for dark mode
+ */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
