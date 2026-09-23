@@ -1,11 +1,22 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useUser } from '@/lib/supabase/use-user';
 import { useState } from 'react';
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession();
+  const { user, status } = useUser();
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'notifications'>('profile');
+
+  const displayName =
+    (user?.user_metadata?.full_name as string | undefined) ||
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email ||
+    '';
+  const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
+  const githubUsername =
+    (user?.user_metadata?.user_name as string | undefined) ||
+    (user?.user_metadata?.preferred_username as string | undefined) ||
+    '';
 
   if (status === 'loading') {
     return (
@@ -19,7 +30,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (!session) {
+  if (!user) {
     return (
       <div className="mx-auto max-w-4xl p-6">
         <div className="text-center py-12">
@@ -83,15 +94,15 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profile Photo</h2>
             <div className="flex items-center gap-6">
-              {session.user?.image ? (
+              {avatarUrl ? (
                 <img
-                  src={session.user.image}
-                  alt={session.user.name || 'User'}
+                  src={avatarUrl}
+                  alt={displayName || 'User'}
                   className="h-20 w-20 rounded-full"
                 />
               ) : (
                 <div className="h-20 w-20 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold">
-                  {session.user?.name?.charAt(0) || 'U'}
+                  {displayName.charAt(0).toUpperCase() || 'U'}
                 </div>
               )}
               <div>
@@ -114,7 +125,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   id="name"
-                  defaultValue={session.user?.name || ''}
+                  defaultValue={displayName}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
                 />
               </div>
@@ -136,7 +147,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   id="github"
-                  defaultValue={session.user?.name?.toLowerCase().replace(/\s/g, '') || ''}
+                  defaultValue={githubUsername}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
                 />
               </div>
@@ -188,7 +199,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-4">
               <input
                 type="email"
-                defaultValue={session.user?.email || ''}
+                defaultValue={user?.email || ''}
                 className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
               />
               <button className="rounded-lg bg-gray-100 dark:bg-gray-700 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">

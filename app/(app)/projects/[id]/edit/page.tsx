@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Edit Project | PullMates',
+  title: 'Edit Project',
 };
 
 interface EditProjectPageProps {

@@ -5,7 +5,7 @@ import { mockProjects } from '@/lib/mock-data';
 import { ProjectStage } from '@/lib/types';
 import { useState } from 'react';
 
-type FilterType = 'all' | 'building' | 'launched' | 'looking';
+type FilterType = 'all' | 'ideas' | 'building' | 'launched' | 'looking';
 
 function getStageBadge(stage: ProjectStage) {
   const styles: Record<ProjectStage, string> = {
@@ -35,6 +35,8 @@ function filterProjects(projects: typeof mockProjects, filter: FilterType) {
   const publicProjects = projects.filter(p => p.visibility === 'public');
   
   switch (filter) {
+    case 'ideas':
+      return publicProjects.filter(p => p.stage === ProjectStage.IDEA_PRIVATE || p.stage === ProjectStage.IDEA_PUBLIC);
     case 'building':
       return publicProjects.filter(p => p.stage === ProjectStage.BUILDING);
     case 'launched':
@@ -61,13 +63,21 @@ export default function FeedPage() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <div className="mx-auto max-w-5xl p-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover Projects</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Find open source projects to collaborate on or post your own.
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Discover Projects</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+              Find open source projects to collaborate on or post your own.
+            </p>
+          </div>
+          <Link
+            href="/projects/new"
+            className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm"
+          >
+            + New Project
+          </Link>
         </div>
-        
+
         {/* Filters */}
         <div className="mb-6 flex flex-wrap gap-3">
           <button
@@ -75,6 +85,12 @@ export default function FeedPage() {
             className={getFilterButtonStyle(activeFilter === 'all')}
           >
             All Projects
+          </button>
+          <button
+            onClick={() => setActiveFilter('ideas')}
+            className={getFilterButtonStyle(activeFilter === 'ideas')}
+          >
+            Ideas
           </button>
           <button
             onClick={() => setActiveFilter('building')}
@@ -121,7 +137,7 @@ export default function FeedPage() {
               
               {/* Tags */}
               <div className="mt-4 flex flex-wrap gap-2">
-                {project.tags.slice(0, 3).map((tag) => (
+                {project.tags.slice(0, 5).map((tag) => (
                   <span
                     key={tag}
                     className="rounded-md bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs text-gray-600 dark:text-gray-300"
@@ -129,9 +145,9 @@ export default function FeedPage() {
                     {tag}
                   </span>
                 ))}
-                {project.tags.length > 3 && (
+                {project.tags.length > 5 && (
                   <span className="rounded-md bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs text-gray-600 dark:text-gray-300">
-                    +{project.tags.length - 3}
+                    +{project.tags.length - 5}
                   </span>
                 )}
               </div>
@@ -154,9 +170,15 @@ export default function FeedPage() {
                     {(project.repoSyncedData as { stars?: number }).stars && (
                       <span className="flex items-center gap-1">
                         <svg className="h-3.5 w-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07 3.292a1 1 0 00-.364 1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                         {(project.repoSyncedData as { stars: number }).stars}
+                      </span>
+                    )}
+                    {(project.repoSyncedData as { language?: string }).language && (
+                      <span className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        {(project.repoSyncedData as { language: string }).language}
                       </span>
                     )}
                   </div>

@@ -3,9 +3,24 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 export const metadata: Metadata = {
-  title: 'Pullmates - Where Developers Find Their Perfect Team',
+  title: 'Where Developers Find Their Perfect Team',
   description:
     'A collaborative platform for developers to showcase projects, find collaborators, and build amazing things together.',
+  openGraph: {
+    title: 'PullMates — Where Developers Find Their Perfect Team',
+    description:
+      'A collaborative platform for developers to showcase projects, find collaborators, and build amazing things together.',
+    url: '/',
+    type: 'website',
+    images: [
+      {
+        url: '/opengraph-image.png',
+        width: 1907,
+        height: 865,
+        alt: 'PullMates — Where Developers Find Their Team',
+      },
+    ],
+  },
 };
 
 const features = [
@@ -111,7 +126,7 @@ export default function MarketingPage() {
           
           <div className="mt-10 flex items-center justify-center gap-x-6">
             <Link
-              href="/api/auth/signin"
+              href="/signin"
               className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-8 py-3.5 text-sm font-semibold text-white shadow-lg hover:from-orange-600 hover:to-pink-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 transition-all"
             >
               Get Started Free
@@ -230,7 +245,7 @@ export default function MarketingPage() {
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6">
             <Link
-              href="/api/auth/signin"
+              href="/signin"
               className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-8 py-3.5 text-sm font-semibold text-white shadow-lg hover:from-orange-600 hover:to-pink-600 transition-all"
             >
               Get Started Free

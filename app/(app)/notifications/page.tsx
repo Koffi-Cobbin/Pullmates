@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Notifications | PullMates',
+  title: 'Notifications',
 };
 
 export default function NotificationsPage() {

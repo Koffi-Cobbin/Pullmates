@@ -2,14 +2,29 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useUser } from '@/lib/supabase/use-user';
 import ThemeToggle from '@/components/theme-toggle';
 
 export default function NavBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { data: session, status } = useSession();
+  const { user, status, signOut } = useUser();
+  const router = useRouter();
   const isAuthenticated = status === 'authenticated';
+
+  const displayName =
+    (user?.user_metadata?.full_name as string | undefined) ||
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email ||
+    'U';
+  const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+    router.refresh();
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 backdrop-blur-sm">
@@ -37,30 +52,24 @@ export default function NavBar() {
               >
                 Feed
               </Link>
-              <Link
-                href="/projects"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
-              >
-                Projects
-              </Link>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
                 {/* User Avatar */}
                 <Link href="/profile/settings" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                  {session?.user?.image ? (
+                  {avatarUrl ? (
                     <img
-                      src={session.user.image}
-                      alt={session.user.name || 'User'}
+                      src={avatarUrl}
+                      alt={displayName}
                       className="h-8 w-8 rounded-full"
                     />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 flex items-center justify-center text-white text-sm font-semibold">
-                      {session?.user?.name?.charAt(0) || 'U'}
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </Link>
                 <button
-                  onClick={() => signOut({ callbackUrl: '/' })}
+                  onClick={() => void handleSignOut()}
                   className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
                 >
                   Sign Out
@@ -77,7 +86,7 @@ export default function NavBar() {
               </Link>
               <ThemeToggle />
               <Link
-                href="/api/auth/signin"
+                href="/signin"
                 className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm"
               >
                 Sign In
@@ -122,13 +131,6 @@ export default function NavBar() {
                   Feed
                 </Link>
                 <Link
-                  href="/projects"
-                  className="block text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Projects
-                </Link>
-                <Link
                   href="/profile/settings"
                   className="block text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors py-2"
                   onClick={() => setMobileMenuOpen(false)}
@@ -138,7 +140,7 @@ export default function NavBar() {
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    signOut({ callbackUrl: '/' });
+                    void handleSignOut();
                   }}
                   className="block w-full text-left text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors py-2"
                 >
@@ -155,7 +157,7 @@ export default function NavBar() {
                   Browse Projects
                 </Link>
                 <Link
-                  href="/api/auth/signin"
+                  href="/signin"
                   className="block rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white text-center hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm"
                   onClick={() => setMobileMenuOpen(false)}
                 >

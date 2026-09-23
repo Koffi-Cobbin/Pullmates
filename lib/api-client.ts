@@ -133,10 +133,22 @@ const DEFAULT_CONFIG: ApiClientConfig = {
   baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080',
   getToken: () => {
     if (typeof window === 'undefined') return null;
-    // Try NextAuth session token
+    // Supabase SSR session cookie: sb-<project-ref>-auth-token
+    // Value is URL-safe base64 of { access_token, refresh_token, ... }
     const cookies = document.cookie.split(';');
-    const sessionCookie = cookies.find((c) => c.trim().startsWith('next-auth.session-token='));
-    return sessionCookie?.split('=')[1] || null;
+    const sessionCookie = cookies
+      .map((c) => c.trim())
+      .find((c) => c.startsWith('sb-') && c.endsWith('-auth-token='));
+    if (!sessionCookie) return null;
+    const raw = sessionCookie.slice(sessionCookie.indexOf('=') + 1);
+    if (!raw) return null;
+    try {
+      const decoded = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
+      const parsed = JSON.parse(decoded) as { access_token?: string };
+      return parsed.access_token || null;
+    } catch {
+      return null;
+    }
   },
 };
 

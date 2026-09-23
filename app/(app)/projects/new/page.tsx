@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { ProjectStage } from '@/lib/types';
+import { parseGitHubRepoUrl, fetchGitHubPreview, type GitHubPreview } from '@/lib/github';
+import RepoPreviewCard from '@/components/project/repo-preview-card';
 import { useState } from 'react';
 
 const stageOptions = [
@@ -12,11 +14,27 @@ const stageOptions = [
   { value: ProjectStage.MAINTAINED, label: 'Maintained', description: 'Ongoing maintenance and updates' },
 ];
 
+const inputClass =
+  'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors';
+
 export default function NewProjectPage() {
+  // Form fields
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [stage, setStage] = useState<string>(ProjectStage.IDEA_PUBLIC);
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [repoUrl, setRepoUrl] = useState('');
+
   const [tags, setTags] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [roleInput, setRoleInput] = useState('');
+
+  // GitHub auto-fill
+  const [preview, setPreview] = useState<GitHubPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [autoFilledFrom, setAutoFilledFrom] = useState<string | null>(null);
 
   const addTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -40,18 +58,95 @@ export default function NewProjectPage() {
     setRoles(roles.filter(role => role !== roleToRemove));
   };
 
+  const clearPreview = () => {
+    setPreview(null);
+    setPreviewError(null);
+    setAutoFilledFrom(null);
+  };
+
+  const applyAutoFill = (data: GitHubPreview, sourceUrl: string) => {
+    // Title: only if empty
+    if (!title.trim()) {
+      setTitle(data.name);
+    }
+    // Description: only if empty
+    if (!description.trim() && data.description) {
+      setDescription(data.description);
+    }
+    // Tags: merge topics + primary language (no dupes, case-insensitive)
+    const suggestions = [
+      ...(data.language ? [data.language] : []),
+      ...data.topics,
+    ];
+    setTags((prev) => {
+      const existing = new Set(prev.map((t) => t.toLowerCase()));
+      const merged = [...prev];
+      for (const suggestion of suggestions) {
+        const key = suggestion.toLowerCase();
+        if (!existing.has(key)) {
+          merged.push(suggestion);
+          existing.add(key);
+        }
+      }
+      return merged;
+    });
+    setAutoFilledFrom(sourceUrl);
+  };
+
+  const fetchPreview = async () => {
+    const trimmed = repoUrl.trim();
+    if (!trimmed) {
+      clearPreview();
+      return;
+    }
+    if (!parseGitHubRepoUrl(trimmed)) {
+      setPreviewError('Enter a valid GitHub repository URL (https://github.com/owner/repo)');
+      setPreview(null);
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const data = await fetchGitHubPreview(trimmed);
+      setPreview(data);
+      applyAutoFill(data, trimmed);
+    } catch (err) {
+      setPreview(null);
+      setAutoFilledFrom(null);
+      setPreviewError(err instanceof Error ? err.message : 'Failed to fetch repository');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleRepoUrlChange = (value: string) => {
+    setRepoUrl(value);
+    // Clear stale preview when URL changes
+    if (preview || previewError) {
+      clearPreview();
+    }
+  };
+
+  const handleRepoUrlBlur = () => {
+    const trimmed = repoUrl.trim();
+    if (trimmed && parseGitHubRepoUrl(trimmed) && autoFilledFrom !== trimmed) {
+      void fetchPreview();
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl p-6">
       {/* Header */}
       <div className="mb-8">
         <Link
-          href="/projects"
+          href="/feed"
           className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mb-4"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
           </svg>
-          Back to Projects
+          Back to Feed
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Project</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
@@ -69,9 +164,11 @@ export default function NewProjectPage() {
           <input
             type="text"
             id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="My Awesome Project"
             required
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
+            className={inputClass}
           />
         </div>
 
@@ -82,9 +179,11 @@ export default function NewProjectPage() {
           </label>
           <textarea
             id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe your project, its goals, and what you're building..."
             rows={4}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors resize-none"
+            className={`${inputClass} resize-none`}
           />
         </div>
 
@@ -95,7 +194,9 @@ export default function NewProjectPage() {
           </label>
           <select
             id="stage"
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
+            value={stage}
+            onChange={(e) => setStage(e.target.value)}
+            className={inputClass}
           >
             {stageOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -116,7 +217,8 @@ export default function NewProjectPage() {
                 type="radio"
                 name="visibility"
                 value="public"
-                defaultChecked
+                checked={visibility === 'public'}
+                onChange={() => setVisibility('public')}
                 className="h-4 w-4 text-orange-500 border-gray-300 focus:ring-orange-500"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">Public</span>
@@ -126,6 +228,8 @@ export default function NewProjectPage() {
                 type="radio"
                 name="visibility"
                 value="private"
+                checked={visibility === 'private'}
+                onChange={() => setVisibility('private')}
                 className="h-4 w-4 text-orange-500 border-gray-300 focus:ring-orange-500"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">Private</span>
@@ -133,17 +237,71 @@ export default function NewProjectPage() {
           </div>
         </div>
 
-        {/* Repository URL */}
+        {/* Repository URL + GitHub Auto-Fill */}
         <div>
           <label htmlFor="repoUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Repository URL
+            Repository URL{' '}
+            <span className="font-normal text-gray-500 dark:text-gray-400">(GitHub auto-fill)</span>
           </label>
-          <input
-            type="url"
-            id="repoUrl"
-            placeholder="https://github.com/username/repo"
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
-          />
+          <div className="flex gap-2">
+            <input
+              type="url"
+              id="repoUrl"
+              value={repoUrl}
+              onChange={(e) => handleRepoUrlChange(e.target.value)}
+              onBlur={handleRepoUrlBlur}
+              placeholder="https://github.com/username/repo"
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={() => void fetchPreview()}
+              disabled={previewLoading || !repoUrl.trim()}
+              className="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {previewLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Fetching
+                </span>
+              ) : (
+                'Fetch'
+              )}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Paste a public GitHub repo to auto-fill title, description, tags, and preview stats.
+          </p>
+
+          {/* Preview error */}
+          {previewError && (
+            <div className="mt-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              {previewError}
+            </div>
+          )}
+
+          {/* Preview loading skeleton */}
+          {previewLoading && !preview && (
+            <div className="mt-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 animate-pulse space-y-3">
+              <div className="h-4 w-1/3 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-2 w-full rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-16 w-full rounded bg-gray-200 dark:bg-gray-700" />
+            </div>
+          )}
+
+          {/* Preview card */}
+          {preview && (
+            <div className="mt-3">
+              <RepoPreviewCard preview={preview} />
+              <p className="mt-2 text-xs text-green-700 dark:text-green-400">
+                ✓ Auto-filled{autoFilledFrom ? ' — title/description only if empty; tags merged' : ''}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Tags */}
@@ -176,7 +334,7 @@ export default function NewProjectPage() {
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
               placeholder="Add a tag..."
-              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
+              className={`flex-1 ${inputClass} px-4 py-2 text-sm`}
             />
             <button
               type="button"
@@ -219,7 +377,7 @@ export default function NewProjectPage() {
               onChange={(e) => setRoleInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRole())}
               placeholder="Add a role..."
-              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
+              className={`flex-1 ${inputClass} px-4 py-2 text-sm`}
             />
             <button
               type="button"
@@ -235,7 +393,7 @@ export default function NewProjectPage() {
         {/* Actions */}
         <div className="flex items-center justify-end gap-4 pt-4">
           <Link
-            href="/projects"
+            href="/feed"
             className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Cancel
