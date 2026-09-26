@@ -172,6 +172,24 @@ function truncateReadme(text: string, maxChars = 600): string {
 }
 
 /**
+ * Map a GitHub preview to the `projects.repo_synced_data` jsonb shape
+ * (mirrors the seed snapshot / detail-page RepoSyncedData interface).
+ */
+export function previewToSyncedData(p: GitHubPreview): Record<string, unknown> {
+  return {
+    name: p.name,
+    description: p.description,
+    stars: p.stars,
+    forks: p.forks,
+    language: p.language,
+    languageBreakdown: p.languageBreakdown,
+    lastCommitAt: p.lastCommitAt,
+    openIssues: p.openIssues,
+    topics: p.topics,
+  };
+}
+
+/**
  * Fetch a normalized GitHub preview for a public repository.
  * Throws with `.status` set to 400 | 404 | 429 | 502 on failure.
  *

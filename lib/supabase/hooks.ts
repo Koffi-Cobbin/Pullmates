@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../query-keys';
 import {
   fetchFeedProjects,
+  fetchIsActiveMember,
   fetchMyJoinRequest,
   fetchNotifications,
   fetchProfileById,
@@ -95,6 +96,17 @@ export function useMyJoinRequest(
   return useQuery({
     queryKey: queryKeys.projects.joinRequest(projectId ?? '', userId ?? ''),
     queryFn: () => fetchMyJoinRequest(projectId as string, userId as string),
+    enabled: Boolean(projectId && userId),
+  });
+}
+
+export function useIsActiveMember(
+  projectId: string | null | undefined,
+  userId: string | null | undefined
+) {
+  return useQuery({
+    queryKey: queryKeys.projects.membership(projectId ?? '', userId ?? ''),
+    queryFn: () => fetchIsActiveMember(projectId as string, userId as string),
     enabled: Boolean(projectId && userId),
   });
 }

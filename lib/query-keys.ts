@@ -13,6 +13,8 @@ export const queryKeys = {
     reactions: (id: string) => ['projects', id, 'reactions'] as const,
     joinRequest: (projectId: string, userId: string) =>
       ['projects', projectId, 'join-request', userId] as const,
+    membership: (projectId: string, userId: string) =>
+      ['projects', projectId, 'membership', userId] as const,
     byOwner: (ownerId: string) => ['projects', 'owner', ownerId] as const,
   },
   feed: {

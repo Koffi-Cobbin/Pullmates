@@ -282,6 +282,53 @@ export async function fetchMyJoinRequest(
   return (data as { id: string; status: string } | null) ?? null;
 }
 
+export async function fetchIsActiveMember(projectId: string, userId: string): Promise<boolean> {
+  const { count, error } = await createClient()
+    .from('project_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+    .eq('user_id', userId)
+    .eq('status', 'active');
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Writes — content
+// ---------------------------------------------------------------------------
+
+export async function createProjectUpdate(input: {
+  projectId: string;
+  authorId: string;
+  body: string;
+}): Promise<void> {
+  const { error } = await createClient()
+    .from('updates')
+    .insert({
+      project_id: input.projectId,
+      author_id: input.authorId,
+      body: input.body,
+    });
+  if (error) throw error;
+}
+
+export async function createComment(input: {
+  projectId: string;
+  updateId: string | null;
+  authorId: string;
+  body: string;
+}): Promise<void> {
+  const { error } = await createClient()
+    .from('comments')
+    .insert({
+      project_id: input.projectId,
+      update_id: input.updateId,
+      author_id: input.authorId,
+      body: input.body,
+    });
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
@@ -295,6 +342,7 @@ export interface CreateProjectInput {
   repoUrl: string | null;
   tags: string[];
   rolesWanted: string[];
+  repoSyncedData?: Record<string, unknown> | null;
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
@@ -309,6 +357,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       repo_url: input.repoUrl,
       tags: input.tags,
       roles_wanted: input.rolesWanted,
+      repo_synced_data: input.repoSyncedData ?? null,
     })
     .select(OWNER_SELECT)
     .single();

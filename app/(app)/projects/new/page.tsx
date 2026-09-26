@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ProjectStage } from '@/lib/types';
-import { parseGitHubRepoUrl, fetchGitHubPreview, type GitHubPreview } from '@/lib/github';
+import { parseGitHubRepoUrl, fetchGitHubPreview, previewToSyncedData, type GitHubPreview } from '@/lib/github';
 import RepoPreviewCard from '@/components/project/repo-preview-card';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -66,6 +66,7 @@ function NewProjectContent() {
         repoUrl: repoUrl.trim() || null,
         tags,
         rolesWanted: roles,
+        repoSyncedData: preview ? previewToSyncedData(preview) : null,
       });
     },
     onSuccess: (project) => {

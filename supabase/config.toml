@@ -384,6 +384,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Platform-side JWT verification is disabled so CORS preflight OPTIONS requests
+# (which carry no Authorization header) reach the function; refresh-repo
+# validates the user JWT itself and enforces project ownership.
+[functions.refresh-repo]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

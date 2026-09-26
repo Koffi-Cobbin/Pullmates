@@ -10,13 +10,17 @@ import {
   toggleReaction as toggleReactionApi,
 } from '@/lib/supabase/data';
 import {
+  useIsActiveMember,
   useMyJoinRequest,
   useProject,
   useProjectComments,
   useProjectReactions,
   useProjectUpdates,
 } from '@/lib/supabase/hooks';
+import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/lib/supabase/use-user';
+import UpdateComposer from '@/components/project/update-composer';
+import CommentComposer from '@/components/project/comment-composer';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,8 +92,10 @@ export default function ProjectDetailClient({ id }: { id: string }) {
   const { data: comments = [] } = useProjectComments(id);
   const { data: reactions = [] } = useProjectReactions(id);
   const { data: myJoinRequest } = useMyJoinRequest(id, user?.id);
+  const { data: isMember } = useIsActiveMember(id, user?.id);
 
   const isOwner = Boolean(user && project && project.owner.id === user.id);
+  const canPostUpdates = isOwner || Boolean(isMember);
   const canView = Boolean(project && (project.visibility === 'public' || isOwner));
 
   // --- Derived reaction state (from DB rows) ---
@@ -137,6 +143,24 @@ export default function ProjectDetailClient({ id }: { id: string }) {
       });
       setShowJoinForm(false);
       setJoinMessage('');
+    },
+  });
+
+  // --- GitHub repo sync (Edge Function: refresh-repo) ---
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await createClient().functions.invoke('refresh-repo', {
+        body: { projectId: id },
+      });
+      if (error) throw new Error(error.message || 'Sync failed');
+    },
+    onSuccess: () => {
+      setSyncError(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(id) });
+    },
+    onError: (err) => {
+      setSyncError(err instanceof Error ? err.message : 'Sync failed');
     },
   });
 
@@ -350,6 +374,11 @@ export default function ProjectDetailClient({ id }: { id: string }) {
           {/* Updates feed */}
           <section>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Project Updates</h2>
+            {canPostUpdates && (
+              <div className="mb-4">
+                <UpdateComposer projectId={id} />
+              </div>
+            )}
             {updates.length === 0 ? (
               <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 text-center">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -400,7 +429,7 @@ export default function ProjectDetailClient({ id }: { id: string }) {
                       </p>
 
                       {/* Comments */}
-                      {updateComments.length > 0 && (
+                      {(updateComments.length > 0 || user) && (
                         <div className="mt-4 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
                           {updateComments.map((comment) => (
                             <div key={comment.id} className="flex gap-3">
@@ -425,6 +454,9 @@ export default function ProjectDetailClient({ id }: { id: string }) {
                               </div>
                             </div>
                           ))}
+                          {user && (
+                            <CommentComposer projectId={id} updateId={update.id} />
+                          )}
                         </div>
                       )}
                     </article>
@@ -482,19 +514,46 @@ export default function ProjectDetailClient({ id }: { id: string }) {
           {/* Repository card */}
           {repo ? (
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Repository</h3>
-                {project.repoUrl && (
-                  <a
-                    href={project.repoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 transition-colors"
-                  >
-                    View on GitHub →
-                  </a>
-                )}
+                <div className="flex items-center gap-3">
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => syncMutation.mutate()}
+                      disabled={syncMutation.isPending}
+                      title="Re-fetch stars, languages, topics and issues from GitHub"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                    >
+                      <svg
+                        className={`h-3.5 w-3.5 ${syncMutation.isPending ? 'animate-spin' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={1.5}
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+                        />
+                      </svg>
+                      {syncMutation.isPending ? 'Syncing…' : 'Sync'}
+                    </button>
+                  )}
+                  {project.repoUrl && (
+                    <a
+                      href={project.repoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-500 transition-colors"
+                    >
+                      View on GitHub →
+                    </a>
+                  )}
+                </div>
               </div>
+              {syncError && <p className="mt-2 text-xs text-red-500">{syncError}</p>}
 
               {repo.name && (
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{repo.name}</p>
@@ -626,10 +685,25 @@ export default function ProjectDetailClient({ id }: { id: string }) {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-6 text-center">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">No repository linked</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {project.repoUrl ? 'Repository not synced' : 'No repository linked'}
+              </h3>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                This project doesn&apos;t have a GitHub repo yet.
+                {project.repoUrl
+                  ? 'Pull live stats from GitHub for this project.'
+                  : "This project doesn't have a GitHub repo yet."}
               </p>
+              {project.repoUrl && isOwner && (
+                <button
+                  type="button"
+                  onClick={() => syncMutation.mutate()}
+                  disabled={syncMutation.isPending}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-4 py-2 text-xs font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm disabled:opacity-60"
+                >
+                  {syncMutation.isPending ? 'Loading…' : 'Load repository data'}
+                </button>
+              )}
+              {syncError && <p className="mt-3 text-xs text-red-500">{syncError}</p>}
             </div>
           )}
         </div>
