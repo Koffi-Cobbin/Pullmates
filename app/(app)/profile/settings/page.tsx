@@ -1,10 +1,25 @@
 'use client';
 
 import { useUser } from '@/lib/supabase/use-user';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import AuthGuard from '@/components/auth-guard';
+import { queryKeys } from '@/lib/query-keys';
+import { updateMyProfile } from '@/lib/supabase/data';
+import { useMyProfile } from '@/lib/supabase/hooks';
 
 export default function SettingsPage() {
+  return (
+    <AuthGuard>
+      <SettingsContent />
+    </AuthGuard>
+  );
+}
+
+function SettingsContent() {
   const { user, status } = useUser();
+  const queryClient = useQueryClient();
+  const { data: profile, isLoading: profileLoading } = useMyProfile(user?.id);
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'notifications'>('profile');
 
   const displayName =
@@ -14,11 +29,37 @@ export default function SettingsPage() {
     '';
   const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
   const githubUsername =
+    profile?.github_username ||
     (user?.user_metadata?.user_name as string | undefined) ||
     (user?.user_metadata?.preferred_username as string | undefined) ||
     '';
 
-  if (status === 'loading') {
+  // Editable profile fields, hydrated from the DB profile row
+  const [fullName, setFullName] = useState('');
+  const [bio, setBio] = useState('');
+  const [hydrated, setHydrated] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    if (hydrated || !profile) return;
+    setFullName(profile.full_name ?? displayName);
+    setBio(profile.bio ?? '');
+    setHydrated(true);
+  }, [profile, hydrated, displayName]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      if (!user) throw new Error('Not signed in');
+      return updateMyProfile(user.id, { fullName: fullName.trim(), bio: bio.trim() });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile.settings });
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    },
+  });
+
+  if (status === 'loading' || (user && profileLoading)) {
     return (
       <div className="mx-auto max-w-4xl p-6">
         <div className="animate-pulse space-y-6">
@@ -125,7 +166,8 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   id="name"
-                  defaultValue={displayName}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
                 />
               </div>
@@ -136,6 +178,8 @@ export default function SettingsPage() {
                 <textarea
                   id="bio"
                   rows={3}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
                   placeholder="Tell us about yourself..."
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors resize-none"
                 />
@@ -148,13 +192,29 @@ export default function SettingsPage() {
                   type="text"
                   id="github"
                   defaultValue={githubUsername}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors"
+                  readOnly
+                  className="w-full cursor-not-allowed rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-2.5 text-gray-500 dark:text-gray-400 shadow-sm focus:outline-none transition-colors"
                 />
               </div>
-              <div className="pt-4">
-                <button className="rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm">
-                  Save Changes
+              <div className="flex items-center gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fullName.trim() && !saveMutation.isPending) saveMutation.mutate();
+                  }}
+                  disabled={saveMutation.isPending}
+                  className="rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm disabled:opacity-60"
+                >
+                  {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
                 </button>
+                {savedFlash && (
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Saved ✓
+                  </span>
+                )}
+                {saveMutation.isError && (
+                  <span className="text-sm text-red-500">Failed to save. Try again.</span>
+                )}
               </div>
             </div>
           </div>

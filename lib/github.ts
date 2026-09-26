@@ -1,6 +1,6 @@
 /**
  * GitHub repo URL parsing + preview fetching helpers.
- * Shared by the create-project form and the github-preview API route.
+ * Fetches the GitHub REST API directly from the browser (Firebase Hosting static deploy).
  *
  * @module lib/github
  */
@@ -90,31 +90,7 @@ export function parseGitHubRepoUrl(url: string): ParsedGitHubRepo | null {
 }
 
 // ---------------------------------------------------------------------------
-// Client fetch helper
-// ---------------------------------------------------------------------------
-
-export async function fetchGitHubPreview(repoUrl: string): Promise<GitHubPreview> {
-  const response = await fetch('/api/github-preview', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoUrl }),
-  });
-
-  const body = (await response.json().catch(() => null)) as
-    | { preview?: GitHubPreview; error?: string }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(body?.error || `Preview request failed (${response.status})`);
-  }
-  if (!body?.preview) {
-    throw new Error('Invalid preview response');
-  }
-  return body.preview;
-}
-
-// ---------------------------------------------------------------------------
-// GitHub REST fetching (server-side only)
+// GitHub REST fetching (browser)
 // ---------------------------------------------------------------------------
 
 const GITHUB_API = 'https://api.github.com';
@@ -140,24 +116,14 @@ interface GitHubIssueResponse {
 }
 
 function githubHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
+  return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2026-03-10',
-    'User-Agent': 'PullMates-Frontend',
   };
-  const token = process.env.GITHUB_TOKEN;
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
 }
 
 async function githubGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${GITHUB_API}${path}`, {
-    headers: githubHeaders(),
-    // Brief cache to survive rapid form retries
-    next: { revalidate: 300 },
-  });
+  const response = await fetch(`${GITHUB_API}${path}`, { headers: githubHeaders() });
 
   if (!response.ok) {
     const error = new Error(`GitHub API ${response.status}`) as Error & { status?: number };
@@ -174,7 +140,6 @@ async function githubGetRaw(path: string): Promise<string | null> {
         ...githubHeaders(),
         Accept: 'application/vnd.github.raw+json',
       },
-      next: { revalidate: 300 },
     });
     if (!response.ok) return null;
     return await response.text();
@@ -208,9 +173,11 @@ function truncateReadme(text: string, maxChars = 600): string {
 
 /**
  * Fetch a normalized GitHub preview for a public repository.
- * Throws with `.status` set to 404 | 403 | 429 | 502 on failure.
+ * Throws with `.status` set to 400 | 404 | 429 | 502 on failure.
+ *
+ * Unauthenticated requests: 60/hour per IP (GitHub REST rate limit).
  */
-export async function getGitHubPreview(repoUrl: string): Promise<GitHubPreview> {
+export async function fetchGitHubPreview(repoUrl: string): Promise<GitHubPreview> {
   const parsed = parseGitHubRepoUrl(repoUrl);
   if (!parsed) {
     const error = new Error('Invalid GitHub repository URL') as Error & { status?: number };

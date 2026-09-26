@@ -1,10 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ProjectStage } from '@/lib/types';
 import { parseGitHubRepoUrl, fetchGitHubPreview, type GitHubPreview } from '@/lib/github';
 import RepoPreviewCard from '@/components/project/repo-preview-card';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import AuthGuard from '@/components/auth-guard';
+import { queryKeys } from '@/lib/query-keys';
+import { createProject } from '@/lib/supabase/data';
+import { useUser } from '@/lib/supabase/use-user';
 
 const stageOptions = [
   { value: ProjectStage.IDEA_PRIVATE, label: 'Private Idea', description: 'Only you can see this project' },
@@ -18,6 +24,18 @@ const inputClass =
   'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-colors';
 
 export default function NewProjectPage() {
+  return (
+    <AuthGuard>
+      <NewProjectContent />
+    </AuthGuard>
+  );
+}
+
+function NewProjectContent() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
   // Form fields
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -35,6 +53,32 @@ export default function NewProjectPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [autoFilledFrom, setAutoFilledFrom] = useState<string | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: () => {
+      if (!user) throw new Error('Not signed in');
+      return createProject({
+        ownerId: user.id,
+        title: title.trim(),
+        description: description.trim() || null,
+        stage: stage as ProjectStage,
+        visibility,
+        repoUrl: repoUrl.trim() || null,
+        tags,
+        rolesWanted: roles,
+      });
+    },
+    onSuccess: (project) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
+      router.push(`/projects/${project.id}`);
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || createMutation.isPending) return;
+    createMutation.mutate();
+  };
 
   const addTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -155,7 +199,7 @@ export default function NewProjectPage() {
       </div>
 
       {/* Form */}
-      <form className="space-y-6">
+      <form className="space-y-6" onSubmit={handleSubmit}>
         {/* Title */}
         <div>
           <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -391,6 +435,11 @@ export default function NewProjectPage() {
         </div>
 
         {/* Actions */}
+        {createMutation.isError && (
+          <p className="text-sm text-red-500 text-right">
+            Failed to create project. Please try again.
+          </p>
+        )}
         <div className="flex items-center justify-end gap-4 pt-4">
           <Link
             href="/feed"
@@ -400,9 +449,10 @@ export default function NewProjectPage() {
           </Link>
           <button
             type="submit"
-            className="rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm"
+            disabled={!title.trim() || createMutation.isPending}
+            className="rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm disabled:opacity-60"
           >
-            Create Project
+            {createMutation.isPending ? 'Creating…' : 'Create Project'}
           </button>
         </div>
       </form>
