@@ -6,12 +6,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-keys';
 import { ProjectStage } from '@/lib/types';
 import {
+  decideJoinRequest as decideJoinRequestApi,
   submitJoinRequest as submitJoinRequestApi,
   toggleReaction as toggleReactionApi,
 } from '@/lib/supabase/data';
 import {
   useIsActiveMember,
   useMyJoinRequest,
+  usePendingJoinRequests,
   useProject,
   useProjectComments,
   useProjectReactions,
@@ -97,6 +99,7 @@ export default function ProjectDetailClient({ id }: { id: string }) {
   const isOwner = Boolean(user && project && project.owner.id === user.id);
   const canPostUpdates = isOwner || Boolean(isMember);
   const canView = Boolean(project && (project.visibility === 'public' || isOwner));
+  const { data: pendingRequests = [] } = usePendingJoinRequests(id, isOwner);
 
   // --- Derived reaction state (from DB rows) ---
   const reactionCounts = useMemo(() => {
@@ -120,7 +123,7 @@ export default function ProjectDetailClient({ id }: { id: string }) {
   // --- Local interactive state ---
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
-  const joinState: 'idle' | 'pending' = myJoinRequest ? 'pending' : 'idle';
+  const joinState: 'idle' | 'pending' = myJoinRequest?.status === 'pending' ? 'pending' : 'idle';
 
   const reactionMutation = useMutation({
     mutationFn: ({ type, has }: { type: string; has: boolean }) => {
@@ -143,6 +146,18 @@ export default function ProjectDetailClient({ id }: { id: string }) {
       });
       setShowJoinForm(false);
       setJoinMessage('');
+    },
+  });
+
+  const decideMutation = useMutation({
+    mutationFn: ({ requestId, status }: { requestId: string; status: 'accepted' | 'declined' }) =>
+      decideJoinRequestApi(requestId, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.joinRequests(id) });
+      void queryClient.invalidateQueries({ queryKey: ['projects', id, 'membership'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', id, 'join-request'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.updates(id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.comments(id) });
     },
   });
 
@@ -311,7 +326,7 @@ export default function ProjectDetailClient({ id }: { id: string }) {
                 ))}
               </div>
 
-              {!isOwner && user && (
+              {!isOwner && !isMember && user && (
                 <div className="flex items-center gap-2">
                   {joinState === 'idle' ? (
                     <button
@@ -370,6 +385,66 @@ export default function ProjectDetailClient({ id }: { id: string }) {
               </div>
             )}
           </div>
+
+          {/* Owner: pending join requests */}
+          {isOwner && pendingRequests.length > 0 && (
+            <div className="rounded-2xl border border-blue-200 dark:border-blue-500/40 bg-blue-50/60 dark:bg-blue-900/20 p-6 shadow-sm">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Join requests ({pendingRequests.length})
+              </h2>
+              <div className="mt-4 space-y-4">
+                {pendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex flex-wrap items-center gap-3 border-t border-blue-100 dark:border-blue-500/20 pt-4 first:border-t-0 first:pt-0"
+                  >
+                    <img
+                      src={
+                        req.user.avatarUrl ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.user.username}`
+                      }
+                      alt={req.user.username}
+                      className="h-9 w-9 rounded-full"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/profile/${req.user.username}`}
+                        className="text-sm font-medium text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                      >
+                        @{req.user.username}
+                      </Link>
+                      {req.message && (
+                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400 whitespace-pre-line">
+                          {req.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => decideMutation.mutate({ requestId: req.id, status: 'accepted' })}
+                        disabled={decideMutation.isPending}
+                        className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-4 py-1.5 text-xs font-semibold text-white hover:from-orange-600 hover:to-pink-600 transition-all shadow-sm disabled:opacity-60"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => decideMutation.mutate({ requestId: req.id, status: 'declined' })}
+                        disabled={decideMutation.isPending}
+                        className="rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {decideMutation.isError && (
+                <p className="mt-3 text-xs text-red-500">Action failed. Please try again.</p>
+              )}
+            </div>
+          )}
 
           {/* Updates feed */}
           <section>

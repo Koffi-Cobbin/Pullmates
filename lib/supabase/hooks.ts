@@ -8,6 +8,7 @@ import {
   fetchFeedProjects,
   fetchIsActiveMember,
   fetchMyJoinRequest,
+  fetchPendingJoinRequests,
   fetchNotifications,
   fetchProfileById,
   fetchProfileByUsername,
@@ -108,5 +109,13 @@ export function useIsActiveMember(
     queryKey: queryKeys.projects.membership(projectId ?? '', userId ?? ''),
     queryFn: () => fetchIsActiveMember(projectId as string, userId as string),
     enabled: Boolean(projectId && userId),
+  });
+}
+
+export function usePendingJoinRequests(projectId: string | null | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.projects.joinRequests(projectId ?? ''),
+    queryFn: () => fetchPendingJoinRequests(projectId as string),
+    enabled: Boolean(projectId) && enabled,
   });
 }

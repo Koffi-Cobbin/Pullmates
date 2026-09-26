@@ -277,9 +277,51 @@ export async function fetchMyJoinRequest(
     .select('id, status')
     .eq('project_id', projectId)
     .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return (data as { id: string; status: string } | null) ?? null;
+}
+
+export interface PendingJoinRequest {
+  id: string;
+  message: string;
+  createdAt: string;
+  user: { id: string; username: string; fullName: string | null; avatarUrl: string | null };
+}
+
+export async function fetchPendingJoinRequests(projectId: string): Promise<PendingJoinRequest[]> {
+  const { data, error } = await createClient()
+    .from('join_requests')
+    .select(
+      `id, message, created_at,
+       user:profiles!join_requests_user_id_fkey ( id, username, full_name, avatar_url )`
+    )
+    .eq('project_id', projectId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((r) => ({
+    id: r.id,
+    message: r.message ?? '',
+    createdAt: r.created_at,
+    user: {
+      id: r.user.id,
+      username: r.user.username,
+      fullName: r.user.full_name,
+      avatarUrl: r.user.avatar_url,
+    },
+  }));
+}
+
+export async function decideJoinRequest(requestId: string, status: 'accepted' | 'declined'): Promise<void> {
+  const { error } = await createClient()
+    .from('join_requests')
+    .update({ status })
+    .eq('id', requestId)
+    .eq('status', 'pending');
+  if (error) throw error;
 }
 
 export async function fetchIsActiveMember(projectId: string, userId: string): Promise<boolean> {
